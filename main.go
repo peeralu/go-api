@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	serverPort = ":8000"
+	serverPort = ":8080"
 )
 
 var (
