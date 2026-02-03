@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	logFilePath = "/var/log/app/app.log"
-	serverPort  = ":8000"
+	serverPort = ":8000"
 )
 
 var (
@@ -36,28 +35,24 @@ var (
 	)
 )
 
+// logger สำหรับ Docker (stdout only)
 func newLogger() (*zap.Logger, func(), error) {
-	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.TimeKey = "timestamp"
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	encoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	core := zapcore.NewTee(
-		zapcore.NewCore(encoder, zapcore.AddSync(logFile), zap.InfoLevel),
-		zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zap.InfoLevel),
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(os.Stdout),
+		zap.InfoLevel,
 	)
 
 	logger := zap.New(core)
 
 	cleanup := func() {
-		logger.Sync()
-		logFile.Close()
+		_ = logger.Sync()
 	}
 
 	return logger, cleanup, nil
@@ -65,12 +60,18 @@ func newLogger() (*zap.Logger, func(), error) {
 
 func prometheusMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		timer := prometheus.NewTimer(httpRequestDuration.WithLabelValues(c.Method(), c.Path()))
+		timer := prometheus.NewTimer(
+			httpRequestDuration.WithLabelValues(c.Method(), c.Path()),
+		)
 		defer timer.ObserveDuration()
 
 		err := c.Next()
 
-		httpRequestsTotal.WithLabelValues(c.Method(), c.Path(), string(rune(c.Response().StatusCode()))).Inc()
+		httpRequestsTotal.WithLabelValues(
+			c.Method(),
+			c.Path(),
+			string(rune(c.Response().StatusCode())),
+		).Inc()
 
 		return err
 	}
